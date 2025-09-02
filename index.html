@@ -324,12 +324,23 @@
                 }
             };
             
-            // Run the process once on initial load.
-            processJwt();
-
-            // Also, set up a listener to re-run the process anytime the hash changes.
+            // Set up a listener to re-run the process anytime the hash changes.
             // This makes the app reactive to new JWTs pasted in the URL.
             window.addEventListener('hashchange', processJwt);
+
+            // Poll for the hash on initial load, as it may not be available immediately.
+            const hashCheck = setInterval(() => {
+                if (window.location.hash) {
+                    clearInterval(hashCheck); // Stop polling
+                    processJwt(); // Process the JWT
+                }
+            }, 100); // Check every 100ms
+
+            // As a fallback, if the hash isn't found after a short time,
+            // we can stop polling to avoid an infinite loop on pages without a hash.
+            setTimeout(() => {
+                clearInterval(hashCheck);
+            }, 3000); // Stop after 3 seconds
         };
 
         // This interval will check for the 'jose' library every 50ms.
@@ -345,5 +356,6 @@
     </script>
 </body>
 </html>
+
 
 
