@@ -324,7 +324,12 @@
                 }
             };
             
+            // Run the process once on initial load.
             processJwt();
+
+            // Also, set up a listener to re-run the process anytime the hash changes.
+            // This makes the app reactive to new JWTs pasted in the URL.
+            window.addEventListener('hashchange', processJwt);
         };
 
         // This interval will check for the 'jose' library every 50ms.
@@ -340,4 +345,5 @@
     </script>
 </body>
 </html>
+
 
