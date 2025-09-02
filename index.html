@@ -72,12 +72,35 @@
             border-collapse: collapse;
             margin-top: 1.5rem;
         }
+        
+        /* Style for nested tables */
+        table table {
+            margin-top: 0;
+            width: 100%;
+            border: none;
+        }
+        
+        ul, li {
+            list-style-type: none;
+            padding-left: 0;
+            margin: 0;
+        }
+
+        li {
+           padding: 0.5rem;
+           border-bottom: 1px solid var(--border-color);
+        }
+        
+        li:last-child {
+            border-bottom: none;
+        }
 
         th, td {
             padding: 0.9rem 1rem;
             border: 1px solid var(--border-color);
             text-align: start; 
             dir="auto";
+            vertical-align: top;
         }
 
         th {
@@ -107,6 +130,7 @@
             border-radius: 4px;
             font-family: "SF Mono", "Fira Code", monospace;
             font-size: 0.9em;
+            margin: 0;
         }
     </style>
 </head>
@@ -141,6 +165,35 @@
                 }
             };
 
+            // NEW: Recursive function to render any value (primitive, object, or array)
+            const renderValue = (value) => {
+                if (Array.isArray(value)) {
+                    const ul = document.createElement('ul');
+                    value.forEach(item => {
+                        const li = document.createElement('li');
+                        li.appendChild(renderValue(item));
+                        ul.appendChild(li);
+                    });
+                    return ul;
+                } else if (typeof value === 'object' && value !== null) {
+                    const table = document.createElement('table');
+                    const tbody = document.createElement('tbody');
+                    table.appendChild(tbody);
+                    for (const [key, val] of Object.entries(value)) {
+                        const row = tbody.insertRow();
+                        const keyCell = row.insertCell();
+                        const valueCell = row.insertCell();
+                        keyCell.textContent = key;
+                        valueCell.appendChild(renderValue(val));
+                    }
+                    return table;
+                } else {
+                    // For primitive values (string, number, boolean, null)
+                    const textNode = document.createTextNode(value === null ? 'null' : value);
+                    return textNode;
+                }
+            };
+            
             const renderTable = (data, fetchedPubKey) => {
                 const table = document.createElement('table');
                 table.innerHTML = `
@@ -161,13 +214,8 @@
                     const valueCell = row.insertCell();
                     keyCell.textContent = key;
 
-                    if (typeof value === 'object' && value !== null) {
-                        const pre = document.createElement('pre');
-                        pre.textContent = JSON.stringify(value, null, 2);
-                        valueCell.appendChild(pre);
-                    } else {
-                        valueCell.textContent = value;
-                    }
+                    // UPDATED: Use the new recursive render function
+                    valueCell.appendChild(renderValue(value));
                 }
 
                 if (fetchedPubKey) {
@@ -189,19 +237,17 @@
 
             const showMessage = (message, type = 'error') => {
                 const targetDiv = type === 'error' ? errorDiv : outputDiv;
-                // Clear previous errors when showing a new message
                 if (type === 'error') errorDiv.innerHTML = '';
                 else outputDiv.innerHTML = '';
 
                 targetDiv.innerHTML = `<div class="message-box ${type}-message">${message}</div>`;
             };
 
-            // Main logic is now async to handle the fetch() API call.
             const processJwt = async () => {
                 try {
                     const hash = window.location.hash.substring(1);
                     if (!hash) {
-                        return; // No hash, initial message remains.
+                        return;
                     }
 
                     const parts = hash.split('.');
@@ -213,22 +259,18 @@
                     const decodedPayload = decodeBase64Url(payloadB64Url);
                     const jsonData = JSON.parse(decodedPayload);
                     
-                    // --- NEW LOGIC: Dynamically fetch the public key file ---
                     const keyFilename = jsonData.pubkeyid;
                     if (!keyFilename) {
                         throw new Error("JWT payload is missing the required 'pubkeyid' field, which should contain the key filename.");
                     }
 
-                    // More robust security check to allow subdirectories but prevent path traversal.
                     try {
                         const baseUrl = new URL('.', window.location.href);
                         const requestedUrl = new URL(keyFilename, baseUrl.href);
-                        // Ensure the final resolved URL is still within the same directory or a subdirectory.
                         if (!requestedUrl.href.startsWith(baseUrl.href)) {
-                            throw new Error(); // Throw a generic error to be caught below.
+                            throw new Error();
                         }
                     } catch (e) {
-                        // This catches both invalid URL characters and the traversal error thrown above.
                         throw new Error(`Invalid key filename: "${keyFilename}". Path traversal or invalid characters are not allowed.`);
                     }
                     
@@ -242,7 +284,6 @@
                     
                     const fetchedKeyText = await response.text();
 
-                    // If everything is successful, render the table
                     renderTable(jsonData, fetchedKeyText);
 
                 } catch (error) {
@@ -251,10 +292,8 @@
                 }
             };
 
-            // Run the main async function.
             processJwt();
         });
     </script>
 </body>
 </html>
-
