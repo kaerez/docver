@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>JWT Payload Viewer</title>
+    <!-- Lightweight crypto library for JWT verification -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jose/v5.2.3/index.umd.min.js"></script>
     <style>
         :root {
             --bg-color: #f8f9fa;
@@ -43,7 +45,7 @@
             padding-bottom: 1rem;
         }
 
-        #output, #error {
+        #status, #output, #error {
             margin-top: 1rem;
         }
 
@@ -51,8 +53,10 @@
             padding: 1rem;
             border-radius: 4px;
             text-align: center;
-            margin-top: 1.5rem;
+            margin: 1.5rem 0;
             border: 1px solid transparent;
+            font-weight: 500;
+            font-size: 1.1em;
         }
 
         .error-message {
@@ -61,10 +65,18 @@
             border-color: rgba(220, 53, 69, 0.2);
         }
 
+        .success-message {
+            color: var(--success-color);
+            background-color: rgba(25, 135, 84, 0.1);
+            border-color: rgba(25, 135, 84, 0.2);
+        }
+
         .info-message {
             color: var(--text-color);
             background-color: var(--header-bg);
             border-color: var(--border-color);
+            font-weight: normal;
+            font-size: 1em;
         }
         
         table {
@@ -72,12 +84,15 @@
             border-collapse: collapse;
             margin-top: 1.5rem;
         }
+        
+        table[dir="rtl"] th, table[dir="rtl"] td {
+            text-align: right;
+        }
 
         th, td {
             padding: 0.9rem 1rem;
             border: 1px solid var(--border-color);
             text-align: start; 
-            dir="auto";
         }
 
         th {
@@ -114,8 +129,9 @@
 
     <div class="container">
         <h1>JWT Payload Viewer</h1>
+        <div id="status"></div>
         <div id="output">
-             <p class="message-box info-message">To use this tool, append a JWT to the URL after a '#' symbol.</p>
+             <p class="message-box info-message">Access Denied - הגישה נדחתה</p>
         </div>
         <div id="error"></div>
     </div>
@@ -124,6 +140,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             const outputDiv = document.getElementById('output');
             const errorDiv = document.getElementById('error');
+            const statusDiv = document.getElementById('status');
 
             const decodeBase64Url = (base64Url) => {
                 let base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
@@ -141,7 +158,67 @@
                 }
             };
 
-            const renderTable = (data, fetchedPubKey) => {
+            const isHebrew = (text) => {
+                if (typeof text !== 'string') return false;
+                // This regex checks for characters in the Hebrew Unicode block.
+                const hebrewRegex = /[\u0590-\u05FF]/;
+                return hebrewRegex.test(text);
+            };
+
+            const renderValue = (value, container) => {
+                // Set text direction automatically based on content
+                container.dir = 'auto';
+
+                if (Array.isArray(value)) {
+                    const list = document.createElement('div');
+                    if (value.length === 0) {
+                        container.textContent = '[Empty Array]';
+                        return;
+                    }
+                    value.forEach(item => {
+                        const itemContainer = document.createElement('div');
+                        itemContainer.style.borderLeft = '2px solid var(--border-color)';
+                        itemContainer.style.paddingLeft = '1em';
+                        itemContainer.style.marginTop = '0.5em';
+                        renderValue(item, itemContainer);
+                        list.appendChild(itemContainer);
+                    });
+                    container.appendChild(list);
+                } else if (typeof value === 'object' && value !== null) {
+                    const subTable = document.createElement('table');
+                    subTable.style.width = '100%';
+                    const subTbody = subTable.createTBody();
+
+                    if (Object.keys(value).length === 0) {
+                        container.textContent = '{}';
+                        return;
+                    }
+                    // Check if keys are Hebrew to set table direction
+                    if (isHebrew(Object.keys(value)[0])) {
+                        subTable.dir = 'rtl';
+                    }
+
+                    for (const [subKey, subValue] of Object.entries(value)) {
+                        const subRow = subTbody.insertRow();
+                        const keyCell = subRow.insertCell();
+                        const valueCell = subRow.insertCell();
+                        
+                        keyCell.textContent = subKey;
+                        keyCell.style.fontWeight = '500';
+                        keyCell.style.width = '30%';
+                        keyCell.style.wordBreak = 'break-word';
+
+                        renderValue(subValue, valueCell);
+                    }
+                    container.appendChild(subTable);
+                } else {
+                    container.textContent = value === null ? 'null' : String(value);
+                    if(String(value) === 'true') container.style.color = 'var(--success-color)';
+                    if(String(value) === 'false') container.style.color = 'var(--error-color)';
+                }
+            };
+
+            const renderTable = (data) => {
                 const table = document.createElement('table');
                 table.innerHTML = `
                     <thead>
@@ -155,53 +232,38 @@
                 `;
                 const tbody = table.querySelector('tbody');
 
-                for (const [key, value] of Object.entries(data)) {
+                // If the first key is Hebrew, set the table direction to RTL.
+                const keys = Object.keys(data);
+                if (keys.length > 0 && isHebrew(keys[0])) {
+                    table.dir = 'rtl';
+                }
+
+                // Make a copy of data and remove pubkeyid before rendering.
+                const dataToRender = { ...data };
+                delete dataToRender.pubkeyid;
+
+                for (const [key, value] of Object.entries(dataToRender)) {
                     const row = tbody.insertRow();
                     const keyCell = row.insertCell();
                     const valueCell = row.insertCell();
                     keyCell.textContent = key;
-
-                    if (typeof value === 'object' && value !== null) {
-                        const pre = document.createElement('pre');
-                        pre.textContent = JSON.stringify(value, null, 2);
-                        valueCell.appendChild(pre);
-                    } else {
-                        valueCell.textContent = value;
-                    }
-                }
-
-                if (fetchedPubKey) {
-                    const pubKeyRow = tbody.insertRow();
-                    const keyCell = pubKeyRow.insertCell();
-                    const valueCell = pubKeyRow.insertCell();
-                    keyCell.textContent = "Fetched Public Key";
-                    keyCell.style.fontWeight = 'bold';
-                    keyCell.style.color = 'var(--success-color)';
-
-                    const pre = document.createElement('pre');
-                    pre.textContent = fetchedPubKey;
-                    valueCell.appendChild(pre);
+                    
+                    renderValue(value, valueCell);
                 }
 
                 outputDiv.innerHTML = ''; 
                 outputDiv.appendChild(table);
             };
 
-            const showMessage = (message, type = 'error') => {
-                const targetDiv = type === 'error' ? errorDiv : outputDiv;
-                // Clear previous errors when showing a new message
-                if (type === 'error') errorDiv.innerHTML = '';
-                else outputDiv.innerHTML = '';
-
+            const showMessage = (message, type, targetDiv = errorDiv) => {
                 targetDiv.innerHTML = `<div class="message-box ${type}-message">${message}</div>`;
             };
 
-            // Main logic is now async to handle the fetch() API call.
             const processJwt = async () => {
                 try {
                     const hash = window.location.hash.substring(1);
                     if (!hash) {
-                        return; // No hash, initial message remains.
+                        return;
                     }
 
                     const parts = hash.split('.');
@@ -209,53 +271,68 @@
                         throw new Error("Invalid JWT format. A JWT must have three parts separated by dots.");
                     }
 
+                    const headerB64Url = parts[0];
                     const payloadB64Url = parts[1];
-                    const decodedPayload = decodeBase64Url(payloadB64Url);
-                    const jsonData = JSON.parse(decodedPayload);
                     
-                    // --- NEW LOGIC: Dynamically fetch the public key file ---
+                    const decodedPayload = decodeBase64Url(payloadB64Url);
+                    const decodedHeader = decodeBase64Url(headerB64Url);
+                    
+                    const jsonData = JSON.parse(decodedPayload);
+                    const jsonHeader = JSON.parse(decodedHeader);
+                    
                     const keyFilename = jsonData.pubkeyid;
                     if (!keyFilename) {
-                        throw new Error("JWT payload is missing the required 'pubkeyid' field, which should contain the key filename.");
+                        throw new Error("JWT payload is missing the required 'pubkeyid' field.");
                     }
+                    
+                    // Log pubkeyid to console instead of displaying it.
+                    console.log(`Public Key ID Filename: "${keyFilename}"`);
 
-                    // More robust security check to allow subdirectories but prevent path traversal.
                     try {
                         const baseUrl = new URL('.', window.location.href);
                         const requestedUrl = new URL(keyFilename, baseUrl.href);
-                        // Ensure the final resolved URL is still within the same directory or a subdirectory.
-                        if (!requestedUrl.href.startsWith(baseUrl.href)) {
-                            throw new Error(); // Throw a generic error to be caught below.
-                        }
+                        if (!requestedUrl.href.startsWith(baseUrl.href)) throw new Error();
                     } catch (e) {
-                        // This catches both invalid URL characters and the traversal error thrown above.
-                        throw new Error(`Invalid key filename: "${keyFilename}". Path traversal or invalid characters are not allowed.`);
+                        throw new Error(`Invalid key filename: "${keyFilename}". Path traversal is not allowed.`);
                     }
                     
-                    showMessage(`Attempting to load public key file: <strong>${keyFilename}</strong>...`, 'info');
+                    showMessage(`Verifying signature with key from <strong>${keyFilename}</strong>...`, 'info', outputDiv);
 
                     const response = await fetch(keyFilename);
-
                     if (!response.ok) {
-                        throw new Error(`Could not load the public key file "${keyFilename}". Server responded with status: ${response.status} ${response.statusText}. Ensure the key file is in the same directory as this HTML file.`);
+                        throw new Error(`Could not load the public key file "${keyFilename}". Server responded with status: ${response.status}.`);
                     }
                     
                     const fetchedKeyText = await response.text();
 
-                    // If everything is successful, render the table
-                    renderTable(jsonData, fetchedKeyText);
+                    // --- Signature Validation ---
+                    try {
+                        // Import the PEM-formatted public key.
+                        const publicKey = await jose.importSPKI(fetchedKeyText, jsonHeader.alg);
+                        // Verify the JWT signature.
+                        await jose.jwtVerify(hash, publicKey);
+                        
+                        // If successful, show the valid status message.
+                        showMessage('Valid <span style="font-family: sans-serif;">&#x2714;</span> תקין', 'success', statusDiv);
+
+                    } catch (verificationError) {
+                        console.error("Signature verification failed:", verificationError);
+                        // If verification fails, show the invalid status message.
+                        showMessage('Invalid Signature <span style="font-family: sans-serif;">&#x2718;</span> חתימה לא תקינה', 'error', statusDiv);
+                    }
+
+                    // Always render the table, even if the signature is invalid, so the user can inspect the payload.
+                    renderTable(jsonData);
 
                 } catch (error) {
                     console.error("App Error:", error);
-                    showMessage(error.message, 'error');
+                    showMessage(error.message, 'error', errorDiv);
                 }
             };
 
-            // Run the main async function.
             processJwt();
         });
     </script>
 </body>
 </html>
-
 
