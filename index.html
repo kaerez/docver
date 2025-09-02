@@ -161,7 +161,7 @@
     </div>
 
     <script>
-        const initializeApp = () => {
+        document.addEventListener('DOMContentLoaded', () => {
             const outputDiv = document.getElementById('output');
             const errorDiv = document.getElementById('error');
             const statusDiv = document.getElementById('status');
@@ -258,26 +258,24 @@
                     case 'warning': messageClass = 'warning-message'; break;
                     default: messageClass = 'info-message';
                 }
-
-                targetDiv.innerHTML = `<div class="message-box ${messageClass}">${message}</div>`;
-                if(target === 'status') {
+                
+                // When showing a status, clear everything else.
+                if (target === 'status') {
+                    statusDiv.innerHTML = '';
                     outputDiv.innerHTML = '';
                     errorDiv.innerHTML = '';
                 }
+                targetDiv.innerHTML = `<div class="message-box ${messageClass}">${message}</div>`;
             };
 
             const processJwt = async () => {
                 try {
                     const hash = window.location.hash.substring(1);
                     if (!hash) {
-                        // If there's no hash, ensure the default message is shown and exit.
-                        outputDiv.innerHTML = `<p class="message-box info-message">Access Denied - הגישה נדחתה</p>`;
-                        statusDiv.innerHTML = '';
-                        errorDiv.innerHTML = '';
-                        return;
+                        return; // Should not happen if called correctly, but as a safeguard.
                     }
                     
-                    // A hash exists, so we can now clear the screen and proceed.
+                    // A hash exists, clear the screen and proceed.
                     statusDiv.innerHTML = '';
                     outputDiv.innerHTML = '';
                     errorDiv.innerHTML = '';
@@ -331,37 +329,28 @@
                 }
             };
             
+            // --- NEW ROBUST STARTUP LOGIC ---
             const startApp = () => {
-                const run = () => {
-                    if (window.jose && window.location.hash && window.location.hash.length > 1) {
-                        processJwt();
-                        return true;
+                // This single poll checks for both the library and the hash at once.
+                const readyCheck = setInterval(() => {
+                    const isJoseReady = !!window.jose;
+                    const isHashReady = window.location.hash && window.location.hash.length > 1;
+
+                    if (isJoseReady && isHashReady) {
+                        clearInterval(readyCheck); // Stop polling
+                        processJwt(); // Run the main app logic
                     }
-                    return false;
-                };
+                }, 100);
 
-                if (!run()) {
-                    const checkInterval = setInterval(() => {
-                        if (run()) {
-                            clearInterval(checkInterval);
-                        }
-                    }, 100);
+                // As a fallback, stop polling after 5 seconds to prevent an infinite loop.
+                setTimeout(() => clearInterval(readyCheck), 5000);
 
-                    setTimeout(() => clearInterval(checkInterval), 3000);
-                }
-
+                // Still listen for changes if the user pastes a new JWT later.
                 window.addEventListener('hashchange', processJwt);
             };
 
             startApp();
-        };
-
-        const libraryCheck = setInterval(() => {
-            if (window.jose) {
-                clearInterval(libraryCheck);
-                initializeApp();
-            }
-        }, 50);
+        });
     </script>
 </body>
 </html>
