@@ -152,10 +152,10 @@
 <body>
 
     <div class="container">
-        <h1>JWT Verifier</h1>
+        <h1>Verifier - מאמת</h1>
         <div id="status"></div>
         <div id="output">
-             <p class="message-box info-message">To use this tool, append a JWT to the URL after a '#' symbol.</p>
+             <p class="message-box info-message">Access Denied - הגישה נדחתה</p>
         </div>
         <div id="error"></div>
     </div>
@@ -268,14 +268,19 @@
 
             const processJwt = async () => {
                 try {
+                    const hash = window.location.hash.substring(1);
+                    if (!hash) {
+                        // If there's no hash, ensure the default message is shown and exit.
+                        outputDiv.innerHTML = `<p class="message-box info-message">Access Denied - הגישה נדחתה</p>`;
+                        statusDiv.innerHTML = '';
+                        errorDiv.innerHTML = '';
+                        return;
+                    }
+                    
+                    // A hash exists, so we can now clear the screen and proceed.
                     statusDiv.innerHTML = '';
                     outputDiv.innerHTML = '';
                     errorDiv.innerHTML = '';
-                    const hash = window.location.hash.substring(1);
-                    if (!hash) {
-                        outputDiv.innerHTML = `<p class="message-box info-message">To use this tool, append a JWT to the URL after a '#' symbol.</p>`;
-                        return;
-                    }
 
                     const parts = hash.split('.');
                     if (parts.length !== 3) {
@@ -351,7 +356,6 @@
             startApp();
         };
 
-        // This replaces the DOMContentLoaded listener and ensures the app only runs when the external library is ready.
         const libraryCheck = setInterval(() => {
             if (window.jose) {
                 clearInterval(libraryCheck);
