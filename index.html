@@ -73,7 +73,6 @@
             margin-top: 1.5rem;
         }
         
-        /* Style for nested tables */
         table table {
             margin-top: 0;
             width: 100%;
@@ -165,7 +164,6 @@
                 }
             };
 
-            // NEW: Recursive function to render any value (primitive, object, or array)
             const renderValue = (value) => {
                 if (Array.isArray(value)) {
                     const ul = document.createElement('ul');
@@ -188,9 +186,7 @@
                     }
                     return table;
                 } else {
-                    // For primitive values (string, number, boolean, null)
-                    const textNode = document.createTextNode(value === null ? 'null' : value);
-                    return textNode;
+                    return document.createTextNode(value === null ? 'null' : value);
                 }
             };
             
@@ -213,8 +209,6 @@
                     const keyCell = row.insertCell();
                     const valueCell = row.insertCell();
                     keyCell.textContent = key;
-
-                    // UPDATED: Use the new recursive render function
                     valueCell.appendChild(renderValue(value));
                 }
 
@@ -235,12 +229,23 @@
                 outputDiv.appendChild(table);
             };
 
-            const showMessage = (message, type = 'error') => {
-                const targetDiv = type === 'error' ? errorDiv : outputDiv;
-                if (type === 'error') errorDiv.innerHTML = '';
-                else outputDiv.innerHTML = '';
+            const showMessage = (message, type = 'info') => {
+                 // Clear previous content
+                outputDiv.innerHTML = '';
+                errorDiv.innerHTML = '';
 
-                targetDiv.innerHTML = `<div class="message-box ${type}-message">${message}</div>`;
+                let targetDiv;
+                let messageClass;
+
+                if (type === 'error') {
+                    targetDiv = errorDiv;
+                    messageClass = 'error-message';
+                } else {
+                    targetDiv = outputDiv;
+                    messageClass = 'info-message';
+                }
+                
+                targetDiv.innerHTML = `<div class="message-box ${messageClass}">${message}</div>`;
             };
 
             const processJwt = async () => {
@@ -279,7 +284,7 @@
                     const response = await fetch(keyFilename);
 
                     if (!response.ok) {
-                        throw new Error(`Could not load the public key file "${keyFilename}". Server responded with status: ${response.status} ${response.statusText}. Ensure the key file is in the same directory as this HTML file.`);
+                        throw new Error(`Could not load the public key file "${keyFilename}". Server responded with status: ${response.status} ${response.statusText}. Ensure the key file exists.`);
                     }
                     
                     const fetchedKeyText = await response.text();
@@ -292,8 +297,26 @@
                 }
             };
 
-            processJwt();
+            const startApp = () => {
+                 // Poll for the hash on initial load.
+                const hashCheck = setInterval(() => {
+                    if (window.location.hash && window.location.hash.length > 1) {
+                        clearInterval(hashCheck);
+                        processJwt();
+                    }
+                }, 100);
+
+                setTimeout(() => {
+                    clearInterval(hashCheck);
+                }, 3000); // Stop polling after 3 seconds as a fallback.
+                
+                // Listen for future changes.
+                window.addEventListener('hashchange', processJwt);
+            };
+
+            startApp();
         });
     </script>
 </body>
 </html>
+
