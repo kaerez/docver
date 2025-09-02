@@ -219,9 +219,17 @@
                         throw new Error("JWT payload is missing the required 'pubkeyid' field, which should contain the key filename.");
                     }
 
-                    // Basic security check to prevent directory traversal.
-                    if (keyFilename.includes('/') || keyFilename.includes('\\') || keyFilename.startsWith('.')) {
-                        throw new Error(`Invalid key filename: "${keyFilename}". It cannot contain path separators or be a hidden file.`);
+                    // More robust security check to allow subdirectories but prevent path traversal.
+                    try {
+                        const baseUrl = new URL('.', window.location.href);
+                        const requestedUrl = new URL(keyFilename, baseUrl.href);
+                        // Ensure the final resolved URL is still within the same directory or a subdirectory.
+                        if (!requestedUrl.href.startsWith(baseUrl.href)) {
+                            throw new Error(); // Throw a generic error to be caught below.
+                        }
+                    } catch (e) {
+                        // This catches both invalid URL characters and the traversal error thrown above.
+                        throw new Error(`Invalid key filename: "${keyFilename}". Path traversal or invalid characters are not allowed.`);
                     }
                     
                     showMessage(`Attempting to load public key file: <strong>${keyFilename}</strong>...`, 'info');
@@ -249,4 +257,5 @@
     </script>
 </body>
 </html>
+
 
