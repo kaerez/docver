@@ -330,7 +330,8 @@
 
             // Poll for the hash on initial load, as it may not be available immediately.
             const hashCheck = setInterval(() => {
-                if (window.location.hash) {
+                // We must check for a hash that has more than just the '#' character.
+                if (window.location.hash && window.location.hash.length > 1) {
                     clearInterval(hashCheck); // Stop polling
                     processJwt(); // Process the JWT
                 }
@@ -356,6 +357,7 @@
     </script>
 </body>
 </html>
+
 
 
 
