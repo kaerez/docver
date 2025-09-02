@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>JWT Payload Viewer</title>
-    <!-- Lightweight crypto library for JWT verification -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jose/v5.2.3/index.umd.min.js" defer></script>
+    <!-- Lightweight crypto library for JWT verification. Defer removed for manual load checking. -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jose/v5.2.3/index.umd.min.js"></script>
     <style>
         :root {
             --bg-color: #f8f9fa;
@@ -137,7 +137,8 @@
     </div>
 
     <script>
-        window.addEventListener('load', () => {
+        // This function will contain all the application logic.
+        const initializeApp = () => {
             const outputDiv = document.getElementById('output');
             const errorDiv = document.getElementById('error');
             const statusDiv = document.getElementById('status');
@@ -285,7 +286,6 @@
                         throw new Error("JWT payload is missing the required 'pubkeyid' field.");
                     }
                     
-                    // Log pubkeyid to console instead of displaying it.
                     console.log(`Public Key ID Filename: "${keyFilename}"`);
 
                     try {
@@ -307,21 +307,15 @@
 
                     // --- Signature Validation ---
                     try {
-                        // Import the PEM-formatted public key.
                         const publicKey = await jose.importSPKI(fetchedKeyText, jsonHeader.alg);
-                        // Verify the JWT signature.
                         await jose.jwtVerify(hash, publicKey);
-                        
-                        // If successful, show the valid status message.
                         showMessage('Valid <span style="font-family: sans-serif;">&#x2714;</span> תקין', 'success', statusDiv);
 
                     } catch (verificationError) {
                         console.error("Signature verification failed:", verificationError);
-                        // If verification fails, show the invalid status message.
                         showMessage('Invalid Signature <span style="font-family: sans-serif;">&#x2718;</span> חתימה לא תקינה', 'error', statusDiv);
                     }
 
-                    // Always render the table, even if the signature is invalid, so the user can inspect the payload.
                     renderTable(jsonData);
 
                 } catch (error) {
@@ -329,9 +323,20 @@
                     showMessage(error.message, 'error', errorDiv);
                 }
             };
-
+            
             processJwt();
-        });
+        };
+
+        // This interval will check for the 'jose' library every 50ms.
+        // Once found, it will clear itself and run the main app logic.
+        const libraryCheck = setInterval(() => {
+            // Check if the global 'jose' object is available.
+            if (window.jose) {
+                clearInterval(libraryCheck); // Stop checking.
+                initializeApp(); // Run the application.
+            }
+        }, 50);
+
     </script>
 </body>
 </html>
